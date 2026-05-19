@@ -1,22 +1,24 @@
-import re
-from docx2python import docx2python
-
+import re # imports regular expression library --> used to find text
+from docx2python import docx2python # import function that can read and extract their text
 
 # =========================================================
 # IO
 # =========================================================
 
-def extract_text_from_docx(path: str) -> str:
-    doc = docx2python(path)
-    return doc.text
+def extract_text_from_docx(path: str) -> str: # input: sting, output: string
+    doc = docx2python(path) # reads .docx file
+    return doc.text # returns the document text
+# AI Act as one huge string
 
 
-def normalize(text: str) -> str:
+def normalize(text: str) -> str: 
     # \r\n → \n prima di tutto (alcuni articoli usano \r\n tra numero e titolo)
+    # converts different ways to write a line break (\r\n,\n,\r) into \n
     text = text.replace("\r\n", "\n")
     text = text.replace("\r", "")
 
     # Rimuovi intestazioni di pagina ELI / OJ L / numeri pagina / EN
+    # re.sub(pattern, replacement, text)
     text = re.sub(r"\t?ELI:\s*(?:<[^>]+>)?https?://[^\n<]+(?:</[^>]+>)?\t?[^\n]*", "", text)
     text = re.sub(r"\tOJ L,[^\n]+", "", text)
     text = re.sub(r"\t\d{1,3}/\d{1,3}(?:\t[^\n]*|\n)", "", text)
@@ -29,21 +31,36 @@ def normalize(text: str) -> str:
 
     # Residui " EN" isolati dopo normalizzazione tab
     text = re.sub(r"\n EN\n", "\n", text)
+    
+    # Stops before ANNEX content begins
+    annex_start = re.search(r"\nANNEX\s+[IVXLCDM]+\n", text, re.I) # searches for the first annex
+    if annex_start: 
+        text = text[:annex_start.start()] # annex_start.start() --> position in the text where the annex begins 
 
     # Rimuovi intestazioni CHAPTER / SECTION / ANNEX
-    text = re.sub(r"\nCHAPTER\s+[IVXLCDM\d]+\n\n[^\n]+\n", "\n", text)
-    text = re.sub(r"\nCHAPTER\s+[IVXLCDM\d]+\n", "\n", text)
+    text = re.sub(r"\n\s*CHAPTER\s+[IVXLCDM\d]+\s*\n+\s*[^\n]+\n","\n",text, flags=re.I)
+    # text = re.sub(r"\nCHAPTER\s+[IVXLCDM\d]+\n\n[^\n]+\n", "\n", text)
+    # text = re.sub(r"\nCHAPTER\s+[IVXLCDM\d]+\n", "\n", text)
     text = re.sub(r"\nSECTION\s+\d+\n\n[^\n]+\n", "\n", text)
     text = re.sub(r"\nSECTION\s+\d+\n", "\n", text)
     text = re.sub(r"\nANNEX\s+[IVXLCDM]+\n\n[^\n]+\n", "\n", text)
     text = re.sub(r"\nANNEX\s+[IVXLCDM]+\n", "\n", text)
+    
+    # Rimouvi footnotes
+    text = re.sub(r"\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:[A-Z][a-z]|Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z)","\n",text, flags=re.S)
+    # text = re.sub("\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z)", "\n", text, flags=re.S | re.I)
+    # text = re.sub(r"\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z),"\n",text, flags=re.S|re.I")
 
     # Paragrafi consecutivi sulla stessa riga separati da " N.\t" (es. Art 64)
     text = re.sub(r"(?<!\n)( \d+)\.\t", r"\n\1. ", text)
+    # (?<!\n) = not immediately preceded by a new line
+    # ( \d+)\.\t = space, number, period, tab
+    # r"\n\1. " = (replacement) newline before the number
 
     # Normalizza tab → spazio (mantieni \n)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+", " ", text) # "[ \t]+" = multiple spaces or tabs
+    text = re.sub(r"\n{3,}", "\n\n", text) # \n{3,} = 3 or more newlines
+    
 
     return text.strip()
 
@@ -56,7 +73,10 @@ ARTICLE_RE = re.compile(
     r"\nArticle\s+(\d+)\n(.*?)(?=\nArticle\s+\d+|\Z)",
     re.S | re.I
 )
-
+# \nArticle\s+(\d+)\n(.*?) = find articles (caputing number [(\d+)] + article content [(.*?)], stops ASAP [?])
+# (?=\nArticle\s+\d+|\Z) = stop when article starts or doc ends ([\Z] = end of string)
+# re.S = "." match any character (including a new line)
+# re.I = ignore case (case-insensitive matching)
 
 # =========================================================
 # SUBSTRUCTURE PATTERNS
@@ -93,10 +113,11 @@ VALID_ROMANS = re.compile(
 # UTILITIES
 # =========================================================
 
+# returns True if "s" is a valid roman numeral
 def is_roman(s: str) -> bool:
     return bool(VALID_ROMANS.match(s))
 
-
+# seperates main paragraph text from the subpoints
 def extract_items(pattern, text, roman=False):
     items = []
     for m in pattern.finditer(text):
@@ -110,6 +131,10 @@ def extract_items(pattern, text, roman=False):
     cleaned = pattern.sub("", text).strip()
     return items, cleaned
 
+#  function solves the ambiguity between letter i and roman i.
+# a sequence like a, i, ii, iii, b should become letter a with roman subpoints, 
+# while a sequence like a, b, ..., h, i, j should treat i as the ninth letter.  
+
 
 def process_letters(letters_raw, pid):
     """
@@ -121,14 +146,14 @@ def process_letters(letters_raw, pid):
       - se l'id matcha la lettera alfabetica attesa (a, b, c, ...) → lettera vera
       - altrimenti, se è un romano valido → sub-romano della lettera precedente
         (ed eventuali romani nidificati nel suo testo sono i successivi sub-romani)
-
+    
     Es. struttura "a, i, ii, iii, b" → lettere = [a, b] con a.supplementary = [i, ii, iii]
     Es. struttura "a, b, ..., h, i, j, k, l" → tutte lettere alfabetiche (i = nona lettera)
     """
     letter_objs = []
     expected = "a"
 
-    for l in letters_raw:
+    for l in letters_raw: # Loop through each detected letter-like item
         iid = l["id"]
 
         if iid == expected:
@@ -142,18 +167,22 @@ def process_letters(letters_raw, pid):
                     for r in romans_in_text
                 ]
             })
-            expected = chr(ord(expected) + 1)
+            expected = chr(ord(expected) + 1) # moves to the next expected letter
+            # ord = number code for the letter
+            # chr(...) = turns it back into a character
         elif is_roman(iid) and letter_objs:
             # Sub-romano della lettera precedente.
             # Il testo dell'item può contenere altri romani nidificati (ii, iii...).
-            prev = letter_objs[-1]
-            prev_letter_id = prev["id"].split(".")[-1]
+            prev = letter_objs[-1] # get the last real letter
+            prev_letter_id = prev["id"].split(".")[-1] # 
             inner_romans, l_text_clean = extract_items(ROMAN_RE, l["text"], roman=True)
             # L'item stesso è il primo sub-romano
             prev["supplementary"].append({
                 "id": f"{pid}.{prev_letter_id}.{iid}",
                 "text": l_text_clean
             })
+            # Add this roman numeral under the previous letter.
+
             # I romani nidificati nel suo testo sono i successivi
             for r in inner_romans:
                 prev["supplementary"].append({
@@ -182,6 +211,9 @@ def parse_article(body: str, article_num: str):
         structured.append({
             "id": pid,
             "text": p_text if letter_objs else p["text"],
+            # If the paragraph has letters, use the cleaned paragraph text without the letter items.
+            # If it has no letters, keep the full paragraph text.
+
             "letters": letter_objs
         })
 
@@ -220,6 +252,12 @@ def parse_document(text: str):
         if (inline_par
                 and not re.match(r" ?(?:\(?\d+\)?[.\)])", first_line)
                 and len(first_line) < 300):
+        # Only treat this as an inline paragraph if:
+            # A number like 1. appears inside the first line.
+            # The first line does not already start with a paragraph number.
+            # The line is not too long.
+            
+            # Split title an paragraph text when they are not seperated
             split_pos = inline_par.start()
             title = first_line[:split_pos].strip()
             rest_of_first = first_line[inline_par.start() + 1:].strip()
@@ -227,11 +265,14 @@ def parse_document(text: str):
         elif (first_line
               and not re.match(r" ?(?:\(?\d+\)?[.\)])", first_line)
               and len(first_line) < 120):
+            # If the first line exists, does not start with a paragraph number, and is short, treat it as the title.
+            # PROBLEM: Art. 59 & Art. 111 have two-line titles and they re cut-off
             title = first_line
             body = "\n".join(lines[1:]).strip()
-        else:
+        else: # no title detected
             title = ""
             body = content
+        
 
         articles.append({
             "id": f"Article {num}",
@@ -273,11 +314,11 @@ def flatten(parsed):
 # =========================================================
 
 def main(docx_path: str, output_path="parsed_output.txt"):
-    raw = extract_text_from_docx(docx_path)
-    text = normalize(raw)
+    raw = extract_text_from_docx(docx_path) #read Word file
+    text = normalize(raw) #clean the text
 
-    parsed = parse_document(text)
-    articles, paragraphs, letters, supplementary = flatten(parsed)
+    parsed = parse_document(text) #parse clean text into their sub-sections
+    articles, paragraphs, letters, supplementary = flatten(parsed) # convert into dictionaries
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("=== ARTICLES ===\n")
@@ -305,3 +346,14 @@ def main(docx_path: str, output_path="parsed_output.txt"):
 
 if __name__ == "__main__":
     main("AI_Act_OJ_L_202401689_EN_TXT.docx")
+
+
+# Important concepts:
+    # re.sub(pattern, replacement, text) --> used to clean text - find all text matching pattern and replace it. 
+    # re.search(pattern, text) --> used to find on match
+    # re.compile(...) --> used to prepare a regex pattern once and reuse it
+    # .finditer --> finds all matches one by one
+        # for m in XXXX_RE.finditer(text):
+        # Each m is a match object
+    # .group(1) --> captures parts of regex 
+    # dictionaries --> paragraphs["A"] = "some text" -- store text of paragraph A under the key "A"
