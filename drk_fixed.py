@@ -70,9 +70,18 @@ def normalize(text: str) -> str:
 # =========================================================
 
 ARTICLE_RE = re.compile(
-    r"\nArticle\s+(\d+)\n(.*?)(?=\nArticle\s+\d+|\Z)",
+    r"(?:^|\n)Article\s+(\d+)\s*\n"      # Article header
+    r"(?!\s)"                            # no indent (evita inline/ref)
+    r"(.*?)"
+    r"(?=(?:\nArticle\s+\d+\s*\n)|\Z)",  # next true article
     re.S | re.I
 )
+
+
+#ARTICLE_RE = re.compile(
+#    r"\nArticle\s+(\d+)\n(.*?)(?=\nArticle\s+\d+|\Z)",
+#    re.S | re.I
+#)
 # \nArticle\s+(\d+)\n(.*?) = find articles (caputing number [(\d+)] + article content [(.*?)], stops ASAP [?])
 # (?=\nArticle\s+\d+|\Z) = stop when article starts or doc ends ([\Z] = end of string)
 # re.S = "." match any character (including a new line)
