@@ -47,7 +47,17 @@ def normalize(text: str) -> str:
     text = re.sub(r"\nANNEX\s+[IVXLCDM]+\n", "\n", text)
     
     # Rimouvi footnotes
-    text = re.sub(r"\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:[A-Z][a-z]|Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z)","\n",text, flags=re.S)
+    # Remove only real legal footnotes, not Article 3 definitions like (45), (46), etc.
+    text = re.sub(
+        r"\n\s*\(\d{1,3}\)\s+"
+        r"(?=(?:OJ\s+[A-Z]|Regulation|Directive|Decision|Council|European Parliament|Position of the European Parliament))"
+        r".*?"
+        r"(?=\n\s*(?:Article\s+\d+|CHAPTER\s+|SECTION\s+|ANNEX\s+|\(\d{1,3}\)\s+(?:OJ\s+[A-Z]|Regulation|Directive|Decision|Council|European Parliament|Position of the European Parliament))|\Z)",
+        "\n",
+        text,
+        flags=re.S | re.I
+    )
+    #text = re.sub(r"\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:[A-Z][a-z]|Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z)","\n",text, flags=re.S)
     # text = re.sub("\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z)", "\n", text, flags=re.S | re.I)
     # text = re.sub(r"\n\s*\(\d{1,3}\)\s+.*?(?=\n\s*(?:Article\s+\d+|\d+[.\)]\s+|\([a-z]\)|[a-z][\).]\s+|CHAPTER\s+|SECTION\s+|ANNEX\s+)|\Z),"\n",text, flags=re.S|re.I")
 
