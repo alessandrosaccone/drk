@@ -215,19 +215,34 @@ def parse_article(body: str, article_num: str):
             # If it has no letters, keep the full paragraph text.
 
             "letters": letter_objs
-        })
-
-    if not structured and remainder:
-        # Articoli senza paragrafi numerati ma con lista di lettere (es. Art 16, 66)
-        pid = f"{article_num}.1"
+            })
+    
+    if not structured and remainder: # if NO numbered paragraphs, but some text is left
         letters_raw, p_text = extract_items(LETTER_RE, remainder)
-        letter_objs = process_letters(letters_raw, pid)
+        letter_objs = process_letters(letters_raw, f"{article_num}.1")
 
-        structured.append({
-            "id": pid,
-            "text": p_text if letter_objs else remainder,
-            "letters": letter_objs
-        })
+    # CASE: letters exist → create XX.1
+        if letter_objs:
+            structured.append({
+                "id": f"{article_num}.1", # creating non-existent XX.1 for articles with sub lettered paragphas
+                "text": p_text,
+                "letters": letter_objs
+            })
+
+    return structured
+          
+
+    # if not structured and remainder:
+    #     # Articoli senza paragrafi numerati ma con lista di lettere (es. Art 16, 66)
+    #     pid = f"{article_num}.1"
+    #     letters_raw, p_text = extract_items(LETTER_RE, remainder)
+    #     letter_objs = process_letters(letters_raw, pid)
+
+    #     structured.append({
+    #         "id": pid,
+    #         "text": p_text if letter_objs else remainder,
+    #         "letters": letter_objs
+            #})
 
     return structured
 
@@ -273,12 +288,28 @@ def parse_document(text: str):
             title = ""
             body = content
         
+        structure = parse_article(body, num)
 
-        articles.append({
-            "id": f"Article {num}",
-            "title": title,
-            "structure": parse_article(body, num)
-        })
+        if not structure:
+            full_text = (title + "\n" + body).strip()
+        
+            articles.append({
+                "id": f"Article {num}",
+                "title": full_text,
+                "structure": []
+            })
+        else:
+            articles.append({
+                "id": f"Article {num}",
+                "title": title,
+                "structure": structure
+            })
+        
+        # articles.append({
+        #     "id": f"Article {num}",
+        #     "title": title,
+        #     "structure": parse_article(body, num)
+        # })
 
     return articles
 
