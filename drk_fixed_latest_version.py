@@ -427,9 +427,137 @@ def main(docx_path: str, output_path="parsed_output.txt"):
     print(f"  Supplementary: {len(supplementary)}")
 
 
+import pandas as pd
+
+
+# =========================================================
+# BUILD ROWS FOR EXCEL
+# =========================================================
+
+import pandas as pd
+
+
+# =========================================================
+# BUILD ROWS (STRICT TEMPLATE MATCH)
+# =========================================================
+
+def build_rows(parsed):
+    rows = []
+
+    for art in parsed:
+        art_num = art["id"].split()[1]   # "Article 4" -> "4"
+        art_title = art["title"]
+
+        # =========================
+        # ARTICLE
+        # =========================
+        rows.append({
+            "Name": art_num,
+            "Reference": art_num,
+            "Description": art_title,
+            "Parent": "",
+            "Authority document": "AI Act",
+            "Supplemental guidance": art_title,
+            "Active": False
+        })
+
+        # =========================
+        # PARAGRAPHS (4.1)
+        # =========================
+        for p in art["structure"]:
+            pid = p["id"]
+            short_ref = pid.split(".")[-1]
+
+            rows.append({
+                "Name": pid,
+                "Reference": short_ref,
+                "Description": art_title,
+                "Parent": art_num,
+                "Authority document": "AI Act",
+                "Supplemental guidance": p["text"],
+                "Active": False
+            })
+
+            # =========================
+            # LETTERS (4.1.a)
+            # =========================
+            for l in p["letters"]:
+                lid = l["id"]
+                short_ref = lid.split(".")[-1]
+
+                rows.append({
+                    "Name": lid,
+                    "Reference": short_ref,
+                    "Description": art_title,
+                    "Parent": pid,
+                    "Authority document": "AI Act",
+                    "Supplemental guidance": l["text"],
+                    "Active": False
+                })
+
+                # =========================
+                # ROMAN (4.1.a.i)
+                # =========================
+                for r in l["supplementary"]:
+                    rid = r["id"]
+                    short_ref = rid.split(".")[-1]
+
+                    rows.append({
+                        "Name": rid,
+                        "Reference": short_ref,
+                        "Description": art_title,
+                        "Parent": lid,
+                        "Authority document": "AI Act",
+                        "Supplemental guidance": r["text"],
+                        "Active": False
+                    })
+
+    return rows
+
+
+# =========================================================
+# EXPORT TO EXCEL (MATCH TEMPLATE EXACTLY)
+# =========================================================
+
+def export_to_excel(parsed, output_path="citation_output.xlsx"):
+    rows = build_rows(parsed)
+
+    # ⚠️ ORDINE COLONNE IDENTICO AL TEMPLATE
+    columns = [
+        "Name",
+        "Reference",
+        "Description",
+        "Parent",
+        "Authority document",
+        "Supplemental guidance",
+        "Active"
+    ]
+
+    df = pd.DataFrame(rows)
+    df = df[columns]   # forza ordine colonne
+
+    # Scrittura Excel
+    df.to_excel(output_path, index=False, engine="openpyxl")
+
+    print(f"✅ File Excel creato: {output_path}")
+    print(f"Totale righe: {len(df)}")
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+def main(docx_path: str):
+    raw = extract_text_from_docx(docx_path)
+    text = normalize(raw)
+
+    parsed = parse_document(text)
+
+    export_to_excel(parsed, "AI_Act_Citation.xlsx")
+
+
 if __name__ == "__main__":
     main("AI_Act_OJ_L_202401689_EN_TXT.docx")
-
 
 # Important concepts:
     # re.sub(pattern, replacement, text) --> used to clean text - find all text matching pattern and replace it. 
